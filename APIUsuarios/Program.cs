@@ -1,41 +1,117 @@
+using APIUsuarios.Application.Interfaces;
+using APIUsuarios.Application.Services;
+using APIUsuarios.Application.Validators;
+using APIUsuarios.Infrastructure.Persistence;
+using APIUsuarios.Infrastructure.Repositories;
+using FluentValidation;
+using Microsoft.EntityFrameworkCore;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-builder.Services.AddOpenApi();
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+// Registro de dependências
+builder.Services.AddScoped<IUsuarioRepository, UsuarioRepository>();
+builder.Services.AddScoped<IUsuarioService, UsuarioService>();
+
+// Validações
+builder.Services.AddValidatorsFromAssemblyContaining<UsuarioCreateDtoValidator>();
+
+// Configuração do Swagger
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+    app.UseSwagger();
+    app.UseSwaggerUI();
 }
 
 app.UseHttpsRedirection();
 
-var summaries = new[]
-{
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
+// Endpoints da API
+var usuarios = app.MapGroup("/usuarios");
 
-app.MapGet("/weatherforecast", () =>
+usuarios.MapGet("/", async (IUsuarioService service, CancellationToken ct) =>
 {
-    var forecast =  Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
+    var usuarios = await service.ListarAsync(ct);
+    return Results.Ok(usuarios);
 })
-.WithName("GetWeatherForecast");
+.WithName("ListarUsuarios")
+.WithOpenApi();
+
+usuarios.MapGet("/{id:int}", async (int id, IUsuarioService service, CancellationToken ct) =>
+{
+    var usuario = await service.ObterAsync(id, ct);
+    return usuario is not null ? Results.Ok(usuario) : Results.NotFound();
+})
+.WithName("ObterUsuario")
+.WithOpenApi();
+
+usuarios.MapPost("/", async (UsuarioCreateDto dto, IUsuarioService service, IValidator<UsuarioCreateDto> validator, CancellationToken ct) =>
+{
+    var validationResult = await validator.ValidateAsync(dto, ct);
+    if (!validationResult.IsValid)
+    {
+        return Results.ValidationProblem(validationResult.ToDictionary());
+    }
+
+    try
+    {
+        var usuario = await service.CriarAsync(dto, ct);
+        return Results.Created($"/usuarios/{usuario.Id}", usuario);
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.Conflict(new { error = ex.Message });
+    }
+})
+.WithName("CriarUsuario")
+.WithOpenApi();
+
+usuarios.MapPut("/{id:int}", async (int id, UsuarioUpdateDto dto, IUsuarioService service, IValidator<UsuarioUpdateDto> validator, CancellationToken ct) =>
+{
+    var validationResult = await validator.ValidateAsync(dto, ct);
+    if (!validationResult.IsValid)
+    {
+        return Results.ValidationProblem(validationResult.ToDictionary());
+    }
+
+    try
+    {
+        var usuario = await service.AtualizarAsync(id, dto, ct);
+        return Results.Ok(usuario);
+    }
+    catch (KeyNotFoundException)
+    {
+        return Results.NotFound();
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.Conflict(new { error = ex.Message });
+    }
+})
+.WithName("AtualizarUsuario")
+.WithOpenApi();
+
+usuarios.MapDelete("/{id:int}", async (int id, IUsuarioService service, CancellationToken ct) =>
+{
+    var removido = await service.RemoverAsync(id, ct);
+    return removido ? Results.NoContent() : Results.NotFound();
+})
+.WithName("RemoverUsuario")
+.WithOpenApi();
+
+// Criar banco de dados e aplicar migrations
+using (var scope = app.Services.CreateScope())
+{
+    var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    dbContext.Database.EnsureCreated();
+}
 
 app.Run();
-
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}
