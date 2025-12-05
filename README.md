@@ -5,6 +5,12 @@ API RESTful desenvolvida em ASP.NET Core 8 com Minimal APIs para gerenciamento d
 
 A solução foi desenvolvida como parte de avaliação acadêmica, demonstrando a aplicação de boas práticas de desenvolvimento, validação de dados com FluentValidation e persistência com Entity Framework Core.
 
+## Vídeo de Apresentação
+
+Link do vídeo apresentando o código com testes no Postman:
+
+https://drive.google.com/file/d/1JVpTaXz9dTOuq75oicEbVOARgznyTq5H/view?usp=sharing
+
 ## Tecnologias Utilizadas
 - .NET 8.0
 - ASP.NET Core Minimal APIs

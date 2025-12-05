@@ -5,6 +5,7 @@ using APIUsuarios.Infrastructure.Persistence;
 using APIUsuarios.Infrastructure.Repositories;
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
+using APIUsuarios.Application.DTOs;
 
 var builder = WebApplication.CreateBuilder(args);
 
